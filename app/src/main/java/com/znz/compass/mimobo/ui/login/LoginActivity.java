@@ -1,14 +1,14 @@
-package com.znz.compass.mimobo.ui;
+package com.znz.compass.mimobo.ui.login;
 
 import com.znz.compass.znzlibray.base.BaseActivity;
 
 /**
- * Date： 2017/6/26 2017
+ * Date： 2017/7/11 2017
  * User： PSuiyi
  * Description：
  */
 
-public class SpashActivity extends BaseActivity {
+public class LoginActivity extends BaseActivity {
     @Override
     protected int[] getLayoutResource() {
         return new int[0];

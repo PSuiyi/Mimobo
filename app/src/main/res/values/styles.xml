@@ -1,4 +1,8 @@
 <resources>
 
+    <style name="AppSplash" parent="AppTheme">
+        <item name="android:windowBackground">@mipmap/splash</item>
+    </style>
+
 
 </resources>
