@@ -50,6 +50,7 @@ dependencies {
         exclude group: 'com.android.support', module: 'support-annotations'
     })
     compile 'com.android.support.constraint:constraint-layout:1.0.2'
+    compile 'com.sina.weibo.sdk:core:2.0.3:openDefaultRelease@aar'
     testCompile 'junit:junit:4.12'
     compile project(':lib_mimobo')
 }

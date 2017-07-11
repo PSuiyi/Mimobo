@@ -5,21 +5,26 @@ import android.app.Activity;
 import android.app.Application;
 import android.content.ClipboardManager;
 import android.content.ComponentName;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.provider.Settings;
 import android.support.annotation.ColorRes;
 import android.support.annotation.DrawableRes;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
+import android.support.v7.app.AlertDialog;
 import android.text.Html;
 import android.text.Selection;
 import android.text.Spannable;
@@ -33,11 +38,14 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.socks.library.KLog;
+import com.znz.compass.znzlibray.BuildConfig;
 import com.znz.compass.znzlibray.R;
 import com.znz.compass.znzlibray.ZnzApplication;
+import com.znz.compass.znzlibray.eventbus.BaseEvent;
 import com.znz.compass.znzlibray.utils.AESUtil;
 import com.znz.compass.znzlibray.utils.ActivityStackManager;
 import com.znz.compass.znzlibray.utils.StringUtil;
+import com.znz.compass.znzlibray.utils.ZnzLog;
 import com.znz.compass.znzlibray.views.EditTextWithLimit;
 import com.znz.compass.znzlibray.views.ZnzToast;
 import com.znz.compass.znzlibray.views.gallery.config.GalleryConfig;
@@ -46,6 +54,8 @@ import com.znz.compass.znzlibray.views.gallery.config.GlideImageLoader;
 import com.znz.compass.znzlibray.views.gallery.inter.IPhotoSelectCallback;
 import com.znz.compass.znzlibray.views.ios.ActionSheetDialog.UIAlertDialog;
 import com.znz.compass.znzlibray.views.preview.PreviewActivity;
+
+import org.greenrobot.eventbus.EventBus;
 
 import java.io.File;
 import java.io.IOException;
@@ -79,6 +89,8 @@ public class DataManager implements ZnzConst {
      */
     private String path = Environment.getExternalStorageDirectory()
             + File.separator + FILENAMEDIR + File.separator;
+
+    private boolean isTokenOut;//token是否失效
 
     public static DataManager getInstance(Context context) {
         if (instance == null) {
@@ -312,6 +324,27 @@ public class DataManager implements ZnzConst {
         return readBooleanTempData(ZnzConstants.IS_LOGIN);
     }
 
+
+    /**
+     * token 过期
+     *
+     * @param context
+     */
+    public void tokenTimeOut(Context context) {
+        if (!isTokenOut) {
+            isTokenOut = true;
+            new AlertDialog.Builder(context)
+                    .setTitle("登录令牌失效")
+                    .setMessage("您的账户在另外一个设备上登录或者登录令牌已过期，请重新登录")
+                    .setCancelable(false)
+                    .setPositiveButton("确定", (dialog, which) -> {
+                        EventBus.getDefault().postSticky(new BaseEvent(0x90000));
+                        isTokenOut = false;
+                    })
+                    .show();
+        }
+    }
+
     /**
      * 注销
      */
@@ -372,6 +405,24 @@ public class DataManager implements ZnzConst {
      */
     public int getColor(@ColorRes int colorRes) {
         return ContextCompat.getColor(context, colorRes);
+    }
+
+
+    /**
+     * 设置view的margin
+     *
+     * @param v
+     * @param l
+     * @param t
+     * @param r
+     * @param b
+     */
+    public void setMargins(View v, int l, int t, int r, int b) {
+        if (v.getLayoutParams() instanceof ViewGroup.MarginLayoutParams) {
+            ViewGroup.MarginLayoutParams p = (ViewGroup.MarginLayoutParams) v.getLayoutParams();
+            p.setMargins(l, t, r, b);
+            v.requestLayout();
+        }
     }
 
     /**
@@ -787,13 +838,54 @@ public class DataManager implements ZnzConst {
     /**
      * 打开网络设置界面
      */
-    public static void openSetting(Activity activity) {
-        Intent intent = new Intent("/");
-        ComponentName cm = new ComponentName("com.android.settings",
-                "com.android.settings.WirelessSettings");
-        intent.setComponent(cm);
-        intent.setAction("android.intent.action.VIEW");
-        activity.startActivityForResult(intent, 0);
+    public void openSettingWifi(Activity activity) {
+        activity.startActivity(new Intent(Settings.ACTION_WIFI_SETTINGS));
+    }
+
+    /**
+     * 打开权限设置界面
+     */
+    public void openSettingPermissions(Activity activity) {
+        Intent i = new Intent("miui.intent.action.APP_PERM_EDITOR");
+        ComponentName componentName = new ComponentName("com.miui.securitycenter", "com.miui.permcenter.permissions.AppPermissionsEditorActivity");
+        i.setComponent(componentName);
+        i.putExtra("extra_pkgname", activity.getPackageName());
+        try {
+            activity.startActivity(i);
+        } catch (Exception e) {
+            e.printStackTrace();
+
+            Intent intent = new Intent("com.meizu.safe.security.SHOW_APPSEC");
+            intent.addCategory(Intent.CATEGORY_DEFAULT);
+            intent.putExtra("packageName", BuildConfig.APPLICATION_ID);
+            try {
+                activity.startActivity(intent);
+            } catch (Exception e1) {
+                e1.printStackTrace();
+
+                try {
+                    Intent intentHuawei = new Intent();
+                    intentHuawei.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    ComponentName comp = new ComponentName("com.huawei.systemmanager", "com.huawei.permissionmanager.ui.MainActivity");//华为权限管理
+                    intent.setComponent(comp);
+                    activity.startActivity(intentHuawei);
+                } catch (Exception e2) {
+                    e2.printStackTrace();
+
+                    Intent localIntent = new Intent();
+                    localIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    if (Build.VERSION.SDK_INT >= 9) {
+                        localIntent.setAction("android.settings.APPLICATION_DETAILS_SETTINGS");
+                        localIntent.setData(Uri.fromParts("package", activity.getPackageName(), null));
+                    } else if (Build.VERSION.SDK_INT <= 8) {
+                        localIntent.setAction(Intent.ACTION_VIEW);
+                        localIntent.setClassName("com.android.settings", "com.android.settings.InstalledAppDetails");
+                        localIntent.putExtra("com.android.settings.ApplicationPkgName", activity.getPackageName());
+                    }
+                    activity.startActivity(localIntent);
+                }
+            }
+        }
     }
 
 
@@ -830,6 +922,50 @@ public class DataManager implements ZnzConst {
             }
             activity.startActivity(intent);
         }).show();
+    }
+
+    /**
+     * 创建快捷方式
+     *
+     * @param cls
+     * @param name
+     * @param resId
+     */
+    public void createShortcut(Class<?> cls, String name, int resId) {
+        if (!isExistShortCut(name)) {
+            Intent shortcut = new Intent("com.android.launcher.action.INSTALL_SHORTCUT");
+            shortcut.putExtra(Intent.EXTRA_SHORTCUT_NAME, name);
+            shortcut.putExtra("duplicate", false);//设置是否重复创建
+
+            Intent intent = new Intent(Intent.ACTION_MAIN);
+            intent.addCategory(Intent.CATEGORY_LAUNCHER);
+            intent.setClass(context, cls);//设置第一个页面
+            shortcut.putExtra(Intent.EXTRA_SHORTCUT_INTENT, intent);
+
+            Intent.ShortcutIconResource iconRes = Intent.ShortcutIconResource.fromContext(context, resId);
+            shortcut.putExtra(Intent.EXTRA_SHORTCUT_ICON_RESOURCE, iconRes);
+
+            context.sendBroadcast(shortcut);
+        }
+    }
+
+    /**
+     * 判读是否已经存在快捷方式
+     *
+     * @param name
+     * @return
+     */
+    public boolean isExistShortCut(String name) {
+        boolean isInstallShortcut = false;
+        final ContentResolver cr = context.getContentResolver();
+        final String AUTHORITY = "com.android.launcher2.settings";
+        final Uri CONTENT_URI = Uri.parse("content://" + AUTHORITY + "/favorites?notify=true");
+        Cursor c = cr.query(CONTENT_URI, new String[]{"title", "iconResource"}, "title=?", new String[]{name}, null);
+        if (c != null && c.getCount() > 0) {
+            isInstallShortcut = true;
+            ZnzLog.e("已经存在快捷方式");
+        }
+        return isInstallShortcut;
     }
 
     /**

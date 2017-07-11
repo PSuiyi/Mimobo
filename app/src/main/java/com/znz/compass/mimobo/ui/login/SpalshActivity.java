@@ -16,7 +16,7 @@ import rx.Observable;
  * Description：
  */
 
-public class SpashActivity extends BaseActivity {
+public class SpalshActivity extends BaseActivity {
     @Override
     protected int[] getLayoutResource() {
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
